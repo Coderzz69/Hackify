@@ -1,0 +1,167 @@
+// Prisma schema for Hackify
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  DEVELOPER
+  RECRUITER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INCOMPLETE
+  CANCELED
+  PAST_DUE
+}
+
+model User {
+  id            String      @id @default(cuid())
+  githubId      String?     @unique
+  username      String?     @unique
+  name          String?
+  email         String?     @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role        @default(DEVELOPER)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  profile       Profile?
+  skillGraph    SkillGraph?
+  snapshots     SkillSnapshot[]
+  evaluations   EvaluationResult[]
+
+  recruiterSaves RecruiterSavedProfile[] @relation("RecruiterSaves")
+  developerSaves RecruiterSavedProfile[] @relation("DeveloperSaves")
+  subscription  Subscription?
+
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Profile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  bio              String?
+  avatarUrl        String?
+  githubUrl        String?
+  publicSlug       String   @unique
+  contactEmail     String?
+  lastGithubSyncAt DateTime?
+  githubStats      Json?
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SkillGraph {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  skills       Json
+  overallScore Float
+  lastUpdated  DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SkillSnapshot {
+  id         String   @id @default(cuid())
+  userId     String
+  snapshot   Json
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EvaluationResult {
+  id         String   @id @default(cuid())
+  userId     String
+  taskId     String
+  code       String
+  score      Float
+  feedback   String
+  breakdown  Json?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  difficulty  String
+  targetSkill String
+  createdAt   DateTime @default(now())
+
+  evaluations EvaluationResult[]
+}
+
+model RecruiterSavedProfile {
+  id          String   @id @default(cuid())
+  recruiterId String
+  developerId String
+  createdAt   DateTime @default(now())
+
+  recruiter   User     @relation("RecruiterSaves", fields: [recruiterId], references: [id], onDelete: Cascade)
+  developer   User     @relation("DeveloperSaves", fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@unique([recruiterId, developerId])
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  recruiterId      String             @unique
+  plan             String
+  stripeCustomerId String
+  status           SubscriptionStatus @default(INCOMPLETE)
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  recruiter        User               @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
